@@ -1,0 +1,1 @@
+export const colors = { background: '#0D1117', card: '#161B22', border: '#30363D', primary: '#58A6FF', text: '#C9D1D9', textSecondary: '#8B949E', success: '#238636', danger: '#DA3633', warning: '#D29922', white: '#FFFFFF' };

@@ -1,0 +1,10 @@
+import React, { useEffect } from 'react';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator } from 'react-native';
+import { useAppDispatch, useAppSelector } from '../state/hooks';
+import { fetchTokens } from '../state/tokensSlice';
+import TokenCard from '../components/TokenCard';
+import { colors } from '../theme/colors';
+import { SafeAreaView } from 'react-native-safe-area-context';
+const HomeScreen = () => { const dispatch = useAppDispatch(); const { tokens, status } = useAppSelector((state) => state.tokens); useEffect(() => { dispatch(fetchTokens()); const interval = setInterval(() => dispatch(fetchTokens()), 5000); return () => clearInterval(interval); }, [dispatch]); return ( <SafeAreaView style={styles.container} edges={['top']}><View style={styles.header}><Text style={styles.title}>Live Token Radar</Text></View>{status === 'loading' && tokens.length === 0 ? <ActivityIndicator style={{marginTop: 20}} size="large" color={colors.primary} /> : status === 'failed' ? <Text style={styles.error}>Could not connect to server.</Text> : <FlatList data={tokens} keyExtractor={(item) => item.id} renderItem={({ item }) => <TokenCard token={item} />} />}</SafeAreaView> ); };
+const styles = StyleSheet.create({ container: { flex: 1, backgroundColor: colors.background }, header: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border }, title: { color: colors.text, fontSize: 24, fontWeight: 'bold' }, error: { color: colors.danger, textAlign: 'center', marginTop: 20 } });
+export default HomeScreen;

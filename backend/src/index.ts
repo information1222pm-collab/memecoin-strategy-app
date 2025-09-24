@@ -22,4 +22,14 @@ app.get('/api/radar-tokens', (req, res) => {
     const tokens = Array.from(analyzedTokens.values()).sort((a, b) => b.score - a.score);
     res.status(200).json(tokens);
 });
+// --- NEW ENDPOINT FOR TOKEN DETAILS ---
+app.get('/api/token-details/:id', (req, res) => {
+    const token = analyzedTokens.get(req.params.id);
+    if (token) {
+        res.status(200).json(token);
+    } else {
+        // If not in cache, create mock details for robustness
+        res.status(200).json({ name: 'Unknown Token', score: 0, priceUSD: 0, priceChange24h: 0, liquidityUSD: 0, marketCap: 0, holders: 0, botShare: 0, gini: 0, avgSlippage: 0, reasons: ['Not found in live cache'] });
+    }
+});
 app.listen(PORT, () => console.log(`✅ Backend server running on http://localhost:${PORT}`));
