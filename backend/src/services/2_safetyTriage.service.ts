@@ -1,8 +1,8 @@
 import { defaultBotSettings } from '../config/defaultBotSettings';
-import { SimulatedToken } from './TokenSimulator';
+import { AppToken } from './DataFetcher'; // <-- CORRECTED IMPORT
 interface SafetyCheckResult { passed: boolean; reasons: string[]; }
 export class SafetyTriageService {
-  public runChecks(token: SimulatedToken): SafetyCheckResult {
+  public runChecks(token: AppToken): SafetyCheckResult { // <-- Use AppToken
     const reasons: string[] = [];
     if (token.liquidityUSD < 1000) reasons.push('Failed sellability test (rug pull).');
     if (token.liquidityUSD < defaultBotSettings.safetyGate.minLiquidityUSD) reasons.push(`Insufficient liquidity ($${Math.round(token.liquidityUSD)}).`);

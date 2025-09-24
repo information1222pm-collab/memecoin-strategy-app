@@ -1,6 +1,6 @@
-import { SimulatedToken } from './TokenSimulator';
+import { AppToken } from './DataFetcher'; // <-- CORRECTED IMPORT
 export class ScoringService {
-  public calculateScore(token: SimulatedToken): { score: number } {
+  public calculateScore(token: AppToken): { score: number } { // <-- Use AppToken
     let score = 0;
     score += Math.min(token.tradesPerMinute / 150, 1) * 35;
     score += Math.max(token.buyerSellerRatio - 1, 0) * 30;
