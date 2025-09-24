@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, useWindowDimensions, ActivityIndicator, Dimensions } from 'react-native';
 import { RouteProp } from '@react-navigation/native';
+import { LineChart } from "react-native-chart-kit";
 import { RootStackParamList } from '../navigation/types';
 import { useAppDispatch, useAppSelector } from '../state/hooks';
-import { fetchTokenDetails } from '../state/tokensSlice';
+import { fetchTokenDetails, fetchTokenChart } from '../state/tokensSlice';
 import { colors } from '../theme/colors';
 import DataWidget from '../components/DataWidget';
 
@@ -15,44 +16,67 @@ const TokenDetailScreen = ({ route }: Props) => {
   const { width } = useWindowDimensions();
   const isTabletLayout = width > 700;
   const dispatch = useAppDispatch();
-  const { currentToken, detailStatus } = useAppSelector((state) => state.tokens);
+  const { currentToken, detailStatus, currentChart, chartStatus } = useAppSelector((state) => state.tokens);
 
   useEffect(() => {
     if (tokenId) {
       dispatch(fetchTokenDetails(tokenId));
+      dispatch(fetchTokenChart(tokenId));
     }
   }, [tokenId, dispatch]);
 
-  const formatPrice = (price: number) => `$${price.toFixed(6)}`;
-  const formatPercent = (p: number) => `${p.toFixed(2)}%`;
-  const formatNumber = (n: number) => Intl.NumberFormat().format(Math.round(n));
-
-  const ChartComponent = () => (
-    <View style={styles.chartPlaceholder}><Text style={styles.placeholderText}>Live Chart Area</Text></View>
-  );
-
+  const ChartComponent = () => {
+    if (chartStatus === 'loading' || !currentChart || !currentChart.datasets[0].data.length) {
+        return <View style={styles.chartPlaceholder}><ActivityIndicator color={colors.primary}/></View>
+    }
+    return (
+        <View style={styles.chartContainer}>
+            <LineChart
+                data={currentChart}
+                width={isTabletLayout ? (width * 0.5) - 24 : width - 32}
+                height={280}
+                withInnerLines={false}
+                withOuterLines={false}
+                chartConfig={{
+                    backgroundColor: colors.card, backgroundGradientFrom: colors.card, backgroundGradientTo: colors.card,
+                    decimalPlaces: 2, color: (opacity = 1) => `rgba(88, 166, 255, ${opacity})`,
+                    labelColor: (opacity = 1) => `rgba(139, 148, 158, ${opacity})`, style: { borderRadius: 16 },
+                    propsForDots: { r: "0" }
+                }}
+                bezier
+                style={{ borderRadius: 16 }}
+            />
+        </View>
+    );
+  };
+  
   const MetricsComponent = () => {
-      if (!currentToken) return null;
+      if (detailStatus === 'loading' || !currentToken) return null;
       const priceChangeColor = currentToken.priceChange24h >= 0 ? colors.success : colors.danger;
       return (
         <View style={styles.metricsContainer}>
           <Text style={styles.sectionTitle}>Key Metrics</Text>
           <View style={styles.widgetRow}>
-            <DataWidget label="Price (USD)" value={formatPrice(currentToken.priceUSD)} />
-            <DataWidget label="24h Change" value={formatPercent(currentToken.priceChange24h)} valueColor={priceChangeColor} />
+            <DataWidget label="Price (USD)" value={`$${currentToken.priceUSD.toFixed(6)}`} />
+            <DataWidget label="24h Change" value={`${currentToken.priceChange24h.toFixed(2)}%`} valueColor={priceChangeColor} />
           </View>
           <View style={styles.widgetRow}>
-            <DataWidget label="Liquidity" value={`$${formatNumber(currentToken.liquidityUSD)}`} />
-            <DataWidget label="Market Cap" value={`$${formatNumber(currentToken.marketCap)}`} />
+            <DataWidget label="Liquidity" value={`$${Math.round(currentToken.liquidityUSD)}`} />
+            <DataWidget label="Market Cap" value={`$${Math.round(currentToken.marketCap)}`} />
           </View>
+          
           <Text style={styles.sectionTitle}>Holder Analysis</Text>
           <View style={styles.widgetRow}>
-            <DataWidget label="Total Holders" value={formatNumber(currentToken.holders)} />
-            <DataWidget label="Bot Share (Est.)" value={`${formatNumber(currentToken.botShare)}%`} />
+              <DataWidget label="Total Holders" value={String(Math.round(currentToken.holders))} />
+              <DataWidget label="Bot Share (Est.)" value={`${Math.round(currentToken.botShare)}%`} />
           </View>
+          
           <Text style={styles.sectionTitle}>Safety Checks</Text>
           <View style={styles.safetyCheck}>
-            {currentToken.reasons.length === 0 ? <Text style={{color: colors.success}}>✅ All safety checks passed.</Text> : currentToken.reasons.map(reason => <Text key={reason} style={{color: colors.danger}}>❌ {reason}</Text>)}
+            {currentToken.reasons.length === 0 
+              ? <Text style={{color: colors.success}}>✅ All primary safety checks passed.</Text> 
+              : currentToken.reasons.map(reason => <Text key={reason} style={{color: colors.danger, marginBottom: 4}}>❌ {reason}</Text>)
+            }
           </View>
         </View>
       );
@@ -60,9 +84,6 @@ const TokenDetailScreen = ({ route }: Props) => {
   
   if (detailStatus === 'loading') {
     return <View style={styles.centered}><ActivityIndicator size="large" color={colors.primary} /></View>;
-  }
-  if (detailStatus === 'failed') {
-    return <View style={styles.centered}><Text style={{color: colors.danger}}>Failed to load token details.</Text></View>;
   }
 
   if (isTabletLayout) {
@@ -86,13 +107,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   tabletContainer: { flex: 1, flexDirection: 'row', backgroundColor: colors.background, padding: 8 },
-  leftColumn: { flex: 1.2, marginRight: 8 },
+  leftColumn: { flex: 1.2, marginRight: 8, paddingTop: 16 },
   rightColumn: { flex: 1 },
-  chartPlaceholder: { height: 300, backgroundColor: colors.card, justifyContent: 'center', alignItems: 'center', borderRadius: 8, borderWidth: 1, borderColor: colors.border, margin: 16 },
-  placeholderText: { color: colors.textSecondary },
-  metricsContainer: { paddingHorizontal: 12 },
+  chartContainer: { alignItems: 'center', marginHorizontal: 16, marginTop: 16 },
+  chartPlaceholder: { height: 312, justifyContent: 'center', alignItems: 'center', margin: 16 },
+  metricsContainer: { paddingHorizontal: 12, paddingBottom: 24 },
   sectionTitle: { color: colors.text, fontSize: 20, fontWeight: 'bold', marginTop: 16, marginBottom: 8 },
   widgetRow: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap' },
-  safetyCheck: { backgroundColor: colors.card, borderRadius: 8, padding: 16, borderColor: colors.border, borderWidth: 1, marginBottom: 24 }
+  safetyCheck: { backgroundColor: colors.card, borderRadius: 8, padding: 16, borderColor: colors.border, borderWidth: 1 }
 });
+
 export default TokenDetailScreen;
