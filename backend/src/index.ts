@@ -2,7 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import { SafetyTriageService } from './services/2_safetyTriage.service';
 import { ScoringService } from './services/3_scoring.service';
-import { DataFetcher, AppToken } from './services/DataFetcher'; // <-- Use the new DataFetcher
+import { DataFetcher, AppToken } from './services/DataFetcher';
+import { OnChainService } from './services/OnChainService'; // Ensure this is part of the build
 
 interface AnalyzedToken extends AppToken { id: string; safetyStatus: 'Pass' | 'Fail'; reasons: string[]; score: number; }
 const analyzedTokens = new Map<string, AnalyzedToken>();
@@ -10,7 +11,7 @@ const safetyService = new SafetyTriageService();
 const scoringService = new ScoringService();
 
 const processNewToken = (token: AppToken) => {
-    console.log(`[Ingestion] New LIVE token detected: ${token.symbol} ($${Math.round(token.liquidityUSD)} LP)`);
+    console.log(`[Ingestion] New LIVE token: ${token.symbol} ($${Math.round(token.liquidityUSD)} LP) - Mint Auth: ${token.hasMintAuthority}`);
     
     const safetyResult = safetyService.runChecks(token);
     const scoreResult = scoringService.calculateScore(token);
@@ -18,10 +19,8 @@ const processNewToken = (token: AppToken) => {
     if (analyzedTokens.size > 200) analyzedTokens.delete(analyzedTokens.keys().next().value);
 };
 
-// Initialize and start the live data fetcher instead of the simulator
 const fetcher = new DataFetcher(processNewToken);
 fetcher.start();
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 app.use(cors());
