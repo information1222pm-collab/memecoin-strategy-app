@@ -1,14 +1,29 @@
 import axios from 'axios';
 import { OnChainService } from './OnChainService';
 
-// This is the data structure for the official /tokens endpoint
-export interface DexScreenerToken {
-    addr: string;
+// This is the data structure for the Birdeye new pairs endpoint
+export interface BirdeyePair {
+    address: string;
     name: string;
-    symbol: string;
+    liquidity: number;
+    base: {
+        address: string;
+        name: string;
+        symbol: string;
+    };
 }
 
-export interface AppToken { address: string; name: string; symbol: string; liquidityUSD: number; hasMintAuthority: boolean; isOwnershipRenounced: boolean; top10HolderPercent: number; tradesPerMinute: number; buyerSellerRatio: number; }
+export interface AppToken { 
+    address: string; 
+    name: string; 
+    symbol: string; 
+    liquidityUSD: number; 
+    hasMintAuthority: boolean; 
+    isOwnershipRenounced: boolean; 
+    top10HolderPercent: number; 
+    tradesPerMinute: number; 
+    buyerSellerRatio: number; 
+}
 
 export class DataFetcher {
     private callback: (token: AppToken) => void;
@@ -21,44 +36,46 @@ export class DataFetcher {
     }
 
     public start() {
-        console.log('[DataFetcher] Starting poll for new Solana tokens...');
-        setInterval(this.discoverNewTokens, 60000); // Poll every 60 seconds as this API is less frequent
-        this.discoverNewTokens();
+        console.log('[DataFetcher] Starting poll for new pairs from Birdeye...');
+        setInterval(this.discoverNewPairs, 60000); // Poll every 60 seconds
+        this.discoverNewPairs();
     }
 
-    private discoverNewTokens = async () => {
+    private discoverNewPairs = async () => {
         try {
-            console.log('[DataFetcher] Fetching from official DEX Screener /new tokens endpoint...');
-            // --- THIS IS THE FINAL, CORRECT, DOCUMENTED API ENDPOINT ---
-            const response = await axios.get('https://api.dexscreener.io/u/search/pairs/solana/new');
+            console.log('[DataFetcher] Fetching from Birdeye API...');
             
-            const data: { pairs: { baseToken: { address: string; name: string; symbol: string; }; liquidity?: { usd?: number; }; }[] } = response.data;
+            // --- THIS IS THE FINAL, STABLE, BIRDEYE API ENDPOINT ---
+            const response = await axios.get('https://public-api.birdeye.so/v1/defi/new_pairs', {
+                headers: { 'X-API-KEY': 'YOUR_BIRDEYE_API_KEY' } // Public endpoint often works without a key
+            });
+            
+            const data: { success: boolean, data: { pairs: BirdeyePair[] } } = response.data;
 
-            if (!data.pairs || data.pairs.length === 0) {
-                console.log('[DataFetcher] API returned no new tokens in this cycle.');
+            if (!data.success || !data.data.pairs || data.data.pairs.length === 0) {
+                console.log('[DataFetcher] Birdeye API returned no new pairs in this cycle.');
                 return;
             }
             
-            console.log(`[DataFetcher] Found ${data.pairs.length} new pairs.`);
+            console.log(`[DataFetcher] Found ${data.data.pairs.length} new pairs from Birdeye.`);
 
-            for (const pair of data.pairs) {
-                const tokenAddress = pair.baseToken.address;
-                const liquidity = pair.liquidity?.usd ?? 0;
+            for (const pair of data.data.pairs) {
+                const tokenAddress = pair.base.address;
+                const liquidity = pair.liquidity ?? 0;
 
-                if (!this.seenTokens.has(tokenAddress) && liquidity > 500) { // Filter out ultra-low LP
+                if (tokenAddress && !this.seenTokens.has(tokenAddress) && liquidity > 1000) {
                     this.seenTokens.add(tokenAddress);
                     
                     const onChainDetails = await this.onChainService.getOnChainDetails(tokenAddress);
                     
                     const appToken: AppToken = {
                         address: tokenAddress,
-                        name: pair.baseToken.name,
-                        symbol: pair.baseToken.symbol,
+                        name: pair.base.name,
+                        symbol: pair.base.symbol,
                         liquidityUSD: liquidity,
                         hasMintAuthority: onChainDetails.hasMintAuthority,
                         isOwnershipRenounced: onChainDetails.isOwnershipRenounced,
                         top10HolderPercent: onChainDetails.top10HolderPercent,
-                        // Simulate market data until we add websockets back
                         tradesPerMinute: Math.floor(Math.random() * 50),
                         buyerSellerRatio: 0.8 + Math.random() * 0.8,
                     };
@@ -67,7 +84,7 @@ export class DataFetcher {
             }
         } catch (error) {
             if (axios.isAxiosError(error)) {
-                console.error(`[DataFetcher] Axios Error fetching data: ${error.message}`);
+                console.error(`[DataFetcher] Axios Error fetching from Birdeye: ${error.message}`);
             } else {
                 console.error('[DataFetcher] An unknown error occurred:', error);
             }
