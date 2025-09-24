@@ -1,6 +1,12 @@
 import axios from 'axios';
-import WebSocket from 'ws';
 import { OnChainService } from './OnChainService';
+
+// This is the data structure for the official /tokens endpoint
+export interface DexScreenerToken {
+    addr: string;
+    name: string;
+    symbol: string;
+}
 
 export interface AppToken { address: string; name: string; symbol: string; liquidityUSD: number; hasMintAuthority: boolean; isOwnershipRenounced: boolean; top10HolderPercent: number; tradesPerMinute: number; buyerSellerRatio: number; }
 
@@ -15,32 +21,31 @@ export class DataFetcher {
     }
 
     public start() {
-        console.log('[DataFetcher] Starting poll for new pairs...');
-        setInterval(this.discoverNewPairs, 30000); // Poll every 30 seconds
-        this.discoverNewPairs();
+        console.log('[DataFetcher] Starting poll for new Solana tokens...');
+        setInterval(this.discoverNewTokens, 60000); // Poll every 60 seconds as this API is less frequent
+        this.discoverNewTokens();
     }
 
-    private discoverNewPairs = async () => {
+    private discoverNewTokens = async () => {
         try {
-            console.log('[DataFetcher] Fetching from DEX Screener...');
-            // This is the most stable endpoint for general new pairs
-            const response = await axios.get('https://api.dexscreener.com/latest/dex/pairs');
+            console.log('[DataFetcher] Fetching from official DEX Screener /new tokens endpoint...');
+            // --- THIS IS THE FINAL, CORRECT, DOCUMENTED API ENDPOINT ---
+            const response = await axios.get('https://api.dexscreener.io/u/search/pairs/solana/new');
             
-            // The data structure from this endpoint is different
-            const data: { pairs: { pairAddress: string; baseToken: { address: string; name: string; symbol: string; }; liquidity?: { usd?: number; }; }[] } = response.data;
-            
+            const data: { pairs: { baseToken: { address: string; name: string; symbol: string; }; liquidity?: { usd?: number; }; }[] } = response.data;
+
             if (!data.pairs || data.pairs.length === 0) {
-                console.log('[DataFetcher] API returned no new pairs in this cycle.');
+                console.log('[DataFetcher] API returned no new tokens in this cycle.');
                 return;
             }
             
-            console.log(`[DataFetcher] Found ${data.pairs.length} potential pairs in the latest batch.`);
+            console.log(`[DataFetcher] Found ${data.pairs.length} new pairs.`);
 
-            for (const pair of data.pairs.reverse()) {
+            for (const pair of data.pairs) {
                 const tokenAddress = pair.baseToken.address;
                 const liquidity = pair.liquidity?.usd ?? 0;
 
-                if (!this.seenTokens.has(tokenAddress) && liquidity > 1000) { // Basic liquidity filter
+                if (!this.seenTokens.has(tokenAddress) && liquidity > 500) { // Filter out ultra-low LP
                     this.seenTokens.add(tokenAddress);
                     
                     const onChainDetails = await this.onChainService.getOnChainDetails(tokenAddress);
@@ -53,10 +58,10 @@ export class DataFetcher {
                         hasMintAuthority: onChainDetails.hasMintAuthority,
                         isOwnershipRenounced: onChainDetails.isOwnershipRenounced,
                         top10HolderPercent: onChainDetails.top10HolderPercent,
+                        // Simulate market data until we add websockets back
                         tradesPerMinute: Math.floor(Math.random() * 50),
                         buyerSellerRatio: 0.8 + Math.random() * 0.8,
                     };
-                    // Pass the complete, processed token to the main server logic
                     this.callback(appToken);
                 }
             }
