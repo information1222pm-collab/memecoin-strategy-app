@@ -22,14 +22,18 @@ app.get('/api/radar-tokens', (req, res) => {
     const tokens = Array.from(analyzedTokens.values()).sort((a, b) => b.score - a.score);
     res.status(200).json(tokens);
 });
-// --- NEW ENDPOINT FOR TOKEN DETAILS ---
 app.get('/api/token-details/:id', (req, res) => {
     const token = analyzedTokens.get(req.params.id);
-    if (token) {
-        res.status(200).json(token);
-    } else {
-        // If not in cache, create mock details for robustness
-        res.status(200).json({ name: 'Unknown Token', score: 0, priceUSD: 0, priceChange24h: 0, liquidityUSD: 0, marketCap: 0, holders: 0, botShare: 0, gini: 0, avgSlippage: 0, reasons: ['Not found in live cache'] });
-    }
+    if (token) res.status(200).json(token);
+    else res.status(404).json({ message: "Token not found" });
+});
+// --- NEW ENDPOINT FOR CHART DATA ---
+app.get('/api/token-chart/:id', (req, res) => {
+    // In a real app, this would fetch historical data. Here, we simulate it.
+    const dataPoints = Array.from({ length: 30 }, () => Math.random() * 100 + 50);
+    res.status(200).json({
+        labels: ["-30m", "-15m", "Now"], // Simplified labels
+        datasets: [{ data: dataPoints }]
+    });
 });
 app.listen(PORT, () => console.log(`✅ Backend server running on http://localhost:${PORT}`));
